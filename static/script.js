@@ -187,11 +187,22 @@ submitBtn.addEventListener('click', async (e) => {
             body: formData
         });
 
-        if (!response.ok) {
-            throw new Error('Netzwerkfehler: ' + response.statusText);
+        // Versuche Antwort zu parsen, unabhängig vom HTTP-Status
+        let data = null;
+        const contentType = response.headers.get('content-type');
+        
+        try {
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                const text = await response.text();
+                console.error('Unexpected response format:', text);
+                throw new Error('Ungültiges Antwortformat vom Server');
+            }
+        } catch (parseError) {
+            console.error('JSON Parse Error:', parseError);
+            throw new Error('Fehler beim Parsen der Serverantwort');
         }
-
-        const data = await response.json();
 
         if (data.success) {
             // Wartennummer anzeigen
@@ -203,11 +214,28 @@ submitBtn.addEventListener('click', async (e) => {
             // Erfolgs-Benachrichtigung
             showNotification('✓ Formular erfolgreich verarbeitet!', 'success');
 
+            // Formular zurücksetzen nach erfolgreicher Einreichung
+            form.reset();
+            timerStarted = false;
+            updateTimerDisplay();
+
             if (data.email_sent === false) {
                 showNotification('E-Mail wurde nicht gesendet (Konfiguration fehlt).', 'info');
             }
         } else {
-            showNotification('✗ Fehler beim Verarbeiten des Formulars.', 'error');
+            // Zeige Fehlermeldung an
+            let errorMessage = data.message || 'Fehler beim Verarbeiten des Formulars.';
+            
+            // Wenn spezifische Validierungsfehler vorhanden sind
+            if (data.errors && typeof data.errors === 'object') {
+                const errorList = Object.entries(data.errors)
+                    .map(([field, message]) => `${field}: ${message}`)
+                    .join('\n');
+                errorMessage += '\n\n' + errorList;
+            }
+            
+            showNotification('✗ ' + errorMessage, 'error');
+
         }
     } catch (error) {
         console.error('Fehler:', error);
@@ -258,6 +286,32 @@ function initTimePicker() {
 
 initTimePicker();
 
+// ===== SETZE DEFAULT DATUM UND UHRZEIT =====
+function setDefaultDateTime() {
+    const now = new Date();
+    
+    // Aktuelles Datum (YYYY-MM-DD)
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+    
+    // Aktuelle Uhrzeit auf 10 Minuten genau
+    const hours = now.getHours();
+    const minutes = Math.ceil(now.getMinutes() / 10) * 10;
+    const timeString = `${String(hours).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    
+    const terminTagInput = document.getElementById('termin_tag');
+    const zeitInput = document.getElementById('uhrzeit');
+    
+    if (terminTagInput && !terminTagInput.value) {
+        terminTagInput.value = dateString;
+    }
+    
+    if (zeitInput && !zeitInput.value) {
+        zeitInput.value = timeString;
+    }
+}
 
 // Formular-Validierung
 function validateForm() {
@@ -362,9 +416,10 @@ document.addEventListener('mousemove', resetInactivityTimer);
 document.addEventListener('click', resetInactivityTimer);
 document.addEventListener('touchstart', resetInactivityTimer);
 
-// Timer-Display beim Laden initialisieren
+// Timer-Display beim Laden initialisieren und Default-Werte setzen
 window.addEventListener('load', () => {
     updateTimerDisplay();
+    setDefaultDateTime();
 });
 
 // Informationen anzeigen beim Laden

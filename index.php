@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/config.php';
+session_start();
 require_once __DIR__ . '/includes/functions.php';
+$csrf_token = generate_csrf_token();
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -25,6 +28,7 @@ require_once __DIR__ . '/includes/functions.php';
 
         <main class="main-content">
             <form id="kls-form" method="POST" action="submit_form.php">
+                <input type="hidden" name="csrf_token" value="<?php echo h($csrf_token); ?>">
                 <section class="form-section">
                     <h2 class="section-title">Persönliche Daten</h2>
                     <div class="form-grid">
