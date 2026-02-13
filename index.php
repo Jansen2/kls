@@ -1,0 +1,132 @@
+<?php
+require_once __DIR__ . '/includes/functions.php';
+?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AOK Niedersachsen - Einchecken.-Kundencenter</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1>Einchecken.-Kundencenter</h1>
+                <p class="subtitle">AOK Niedersachsen - Wartelisten-Anmeldung</p>
+            </div>
+            <div class="timer-display">
+                <span class="timer-label">Inaktivitäts-Timeout:</span>
+                <span class="timer-value" id="timer-value">30s</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <form id="kls-form" method="POST" action="submit_form.php">
+                <section class="form-section">
+                    <h2 class="section-title">Persönliche Daten</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="partnernummer">Krankenkassenkartennummer: <span class="optional">(optional)</span></label>
+                            <input type="text" id="partnernummer" name="partnernummer" placeholder="z.B. 123456789">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="anrede">Anrede:</label>
+                            <select id="anrede" name="anrede">
+                                <option value="">-- Bitte wählen --</option>
+                                <option value="Herr">Herr</option>
+                                <option value="Frau">Frau</option>
+                                <option value="Divers">Divers</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="vorname">Vorname:</label>
+                            <input type="text" id="vorname" name="vorname" placeholder="Max">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="nachname">Nachname:</label>
+                            <input type="text" id="nachname" name="nachname" placeholder="Mustermann">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="geburtsdatum">Geburtsdatum:</label>
+                            <input type="date" id="geburtsdatum" name="geburtsdatum">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ansprechpartner">Ansprechpartner/Betreuer:</label>
+                            <input type="text" id="ansprechpartner" name="ansprechpartner" placeholder="Name des Betreuers">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2 class="section-title">Notiz</h2>
+                    <div class="form-group full-width">
+                        <textarea id="notiz" name="notiz" placeholder="Geben Sie hier zusätzliche Informationen ein..." rows="6"></textarea>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2 class="section-title">Kontaktdaten</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="thema">Thema:</label>
+                            <input type="text" id="thema" name="thema" placeholder="Anliegen eingeben">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="wunschberater">Wunschberater:</label>
+                            <input type="text" id="wunschberater" name="wunschberater" placeholder="Name oder ID">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2 class="section-title">Termindaten</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="termin_tag">Termin Tag:</label>
+                            <input type="date" id="termin_tag" name="termin_tag">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="uhrzeit">Uhrzeit:</label>
+                            <input type="time" id="uhrzeit" name="uhrzeit">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section button-section">
+                    <button type="reset" class="btn btn-danger" id="cancel-btn">Abbrechen</button>
+                    <button type="button" class="btn btn-primary" id="submit-btn">Absenden</button>
+                </section>
+            </form>
+        </main>
+    </div>
+
+    <div id="email-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Generierte E-Mail Vorschau</h2>
+                <button class="close-btn" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="email-preview"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="close-modal-btn">Schließen</button>
+                <button class="btn btn-primary" id="print-email-btn">Drucken</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="static/script.js"></script>
+</body>
+</html>

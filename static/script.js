@@ -7,6 +7,8 @@ const closeModalBtn = document.getElementById('close-modal-btn');
 const closeBtn = document.getElementById('close-modal');
 const printEmailBtn = document.getElementById('print-email-btn');
 const emailPreview = document.getElementById('email-preview');
+const timeInput = document.getElementById('uhrzeit');
+const DEBUG_EMAIL_PREVIEW = true;
 
 // Inaktivitäts-Timer Variablen
 let inactivityTimer = null;
@@ -109,6 +111,62 @@ function printEmail() {
     printWindow.print();
 }
 
+// Wartennummer anzeigen (10 Sekunden)
+function showWaitingNumber(waitingNumber, emailHtml) {
+    if (!waitingNumber) {
+        return;
+    }
+
+    let overlay = document.getElementById('waiting-number-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'waiting-number-overlay';
+        overlay.innerHTML = `
+            <div class="waiting-number-card">
+                <div class="waiting-number-title">Ihre Wartennummer</div>
+                <div class="waiting-number-value" id="waiting-number-value"></div>
+                <div class="waiting-number-countdown" id="waiting-number-countdown"></div>
+                <button class="waiting-number-debug" id="waiting-number-debug" type="button">Debug: Vorschau oeffnen</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    }
+
+    const valueEl = overlay.querySelector('#waiting-number-value');
+    const countdownEl = overlay.querySelector('#waiting-number-countdown');
+    let remaining = 10;
+
+    valueEl.textContent = waitingNumber;
+    countdownEl.textContent = `Anzeige schliesst in ${remaining}s`;
+    overlay.classList.add('show');
+
+    const debugBtn = overlay.querySelector('#waiting-number-debug');
+    if (debugBtn && DEBUG_EMAIL_PREVIEW && emailHtml) {
+        debugBtn.addEventListener('click', () => {
+            clearTimeout(resetTimeoutId);
+            overlay.classList.remove('show');
+            openModal(emailHtml);
+        });
+    } else if (debugBtn) {
+        debugBtn.disabled = true;
+    }
+
+    const intervalId = setInterval(() => {
+        remaining -= 1;
+        countdownEl.textContent = `Anzeige schliesst in ${remaining}s`;
+        if (remaining <= 0) {
+            clearInterval(intervalId);
+        }
+    }, 1000);
+
+    const resetTimeoutId = setTimeout(() => {
+        overlay.classList.remove('show');
+        form.reset();
+        closeModal();
+        location.reload();
+    }, 10000);
+}
+
 // Formular absenden
 submitBtn.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -124,7 +182,7 @@ submitBtn.addEventListener('click', async (e) => {
 
     try {
         // Anfrage an den Server
-        const response = await fetch('/submit_form', {
+        const response = await fetch('/submit_form.php', {
             method: 'POST',
             body: formData
         });
@@ -136,11 +194,18 @@ submitBtn.addEventListener('click', async (e) => {
         const data = await response.json();
 
         if (data.success) {
-            // Modal mit E-Mail öffnen
-            openModal(data.email_html);
+            // Wartennummer anzeigen
+            if (data.email_html) {
+                emailPreview.innerHTML = data.email_html;
+            }
+            showWaitingNumber(data.waiting_number, data.email_html);
 
             // Erfolgs-Benachrichtigung
             showNotification('✓ Formular erfolgreich verarbeitet!', 'success');
+
+            if (data.email_sent === false) {
+                showNotification('E-Mail wurde nicht gesendet (Konfiguration fehlt).', 'info');
+            }
         } else {
             showNotification('✗ Fehler beim Verarbeiten des Formulars.', 'error');
         }
@@ -171,6 +236,27 @@ window.addEventListener('click', (e) => {
         closeModal();
     }
 });
+
+// Timepicker initialisieren (Flatpickr)
+function initTimePicker() {
+    if (!timeInput || typeof flatpickr === 'undefined') {
+        return;
+    }
+
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) {
+        return;
+    }
+
+    flatpickr(timeInput, {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: 'H:i',
+        time_24hr: true
+    });
+}
+
+initTimePicker();
 
 
 // Formular-Validierung

@@ -1,6 +1,6 @@
 # AOK Niedersachsen - KLS Empfang Webanwendung
 
-Eine Python Flask-Webanwendung für die digitale Warteschlangen-Verwaltung in den Servicecentern der AOK Niedersachsen.
+Eine PHP-Webanwendung für die digitale Warteschlangen-Verwaltung in den Servicecentern der AOK Niedersachsen.
 
 ## Features
 
@@ -14,34 +14,13 @@ Eine Python Flask-Webanwendung für die digitale Warteschlangen-Verwaltung in de
 ## Installation
 
 ### Voraussetzungen
-- Python 3.8 oder höher
-- pip (Python Package Manager)
+- PHP 8.0 oder höher
 
 ### Schritt-für-Schritt
 
 1. **Repository klonen / Projektordner öffnen**
    ```bash
-   cd kls-empfang
-   ```
-
-2. **Virtuelle Umgebung erstellen (empfohlen)**
-   ```bash
-   python -m venv venv
-   ```
-
-3. **Umgebung aktivieren**
-   - Windows:
-     ```bash
-     venv\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```bash
-     source venv/bin/activate
-     ```
-
-4. **Dependencies installieren**
-   ```bash
-   pip install -r requirements.txt
+   cd kls
    ```
 
 ## Verwendung
@@ -49,10 +28,10 @@ Eine Python Flask-Webanwendung für die digitale Warteschlangen-Verwaltung in de
 ### Starten der Anwendung
 
 ```bash
-python app.py
+php -S 127.0.0.1:8000
 ```
 
-Die Anwendung läuft dann unter `http://127.0.0.1:5000`
+Die Anwendung läuft dann unter `http://127.0.0.1:8000`
 
 ### Bedienung
 
@@ -107,35 +86,37 @@ Die generierte E-Mail enthält:
 
 ```
 kls/
-├── app.py                 # Hauptanwendung (Flask)
-├── requirements.txt       # Python-Dependencies
+├── index.php              # Startseite (Formular)
+├── submit_form.php        # Formular-Endpoint
+├── reset_form.php         # Reset-Endpoint
+├── includes/
+│   └── functions.php      # Gemeinsame PHP-Helper
 ├── templates/
-│   └── index.html        # HTML-Formular
+│   └── index.html         # Legacy-Template (nicht verwendet)
 ├── static/
-│   ├── style.css         # CSS-Styling
-│   └── script.js         # JavaScript-Funktionalität
-└── README.md             # Diese Datei
+│   ├── style.css          # CSS-Styling
+│   └── script.js          # JavaScript-Funktionalität
+└── README.md              # Diese Datei
 ```
 
 ## Technologie-Stack
 
-- **Backend**: Flask (Python Web Framework)
+- **Backend**: PHP
 - **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Server**: Werkzeug WSGI
+- **Server**: PHP Built-in Server (für Entwicklung)
 - **Design**: Responsive, Mobile-First
 
 ## Konfiguration
 
 Die Anwendung läuft standardmäßig auf:
 - **Host**: 127.0.0.1 (localhost)
-- **Port**: 5000
-- **Debug-Modus**: Ein (für Entwicklung)
+- **Port**: 8000
+- **Modus**: Development Server
 
-Diese Einstellungen können in `app.py` angepasst werden:
+Diese Einstellungen können beim Start angepasst werden:
 
-```python
-if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000)
+```bash
+php -S 127.0.0.1:8000
 ```
 
 ## Zukünftige Features

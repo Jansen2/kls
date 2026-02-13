@@ -388,6 +388,68 @@ body {
     border-radius: 0 0 8px 8px;
 }
 
+/* ===== WAITING NUMBER OVERLAY ===== */
+#waiting-number-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    animation: fadeIn 0.3s;
+}
+
+#waiting-number-overlay.show {
+    display: flex;
+}
+
+.waiting-number-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 30px 40px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    min-width: 260px;
+}
+
+.waiting-number-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.waiting-number-value {
+    font-size: 56px;
+    font-weight: 700;
+    color: #009B50;
+    margin: 10px 0;
+    letter-spacing: 2px;
+}
+
+.waiting-number-countdown {
+    font-size: 13px;
+    color: #666;
+}
+
+.waiting-number-debug {
+    margin-top: 12px;
+    background-color: #003865;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.waiting-number-debug:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* ===== TOUCH OPTIMIERUNG ===== */
 @media (hover: none) and (pointer: coarse) {
     /* Touchscreen-Geräte */
