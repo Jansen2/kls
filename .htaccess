@@ -1,0 +1,10 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(data|logs)/ - [F]
+    RewriteRule ^(tools|\.git)/ - [F]
+    RewriteRule ^README\.md$ - [F]
+    RewriteRule ^.*\.md$ - [F]
+    RewriteRule ^test_.*\.php$ - [F]
+</IfModule>

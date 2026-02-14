@@ -2,13 +2,16 @@
 const form = document.getElementById('kls-form');
 const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
-const modal = document.getElementById('email-modal');
-const closeModalBtn = document.getElementById('close-modal-btn');
-const closeBtn = document.getElementById('close-modal');
-const printEmailBtn = document.getElementById('print-email-btn');
-const emailPreview = document.getElementById('email-preview');
 const timeInput = document.getElementById('uhrzeit');
-const DEBUG_EMAIL_PREVIEW = true;
+const startScreen = document.getElementById('start-screen');
+const formScreen = document.getElementById('form-screen');
+const startBtn = document.getElementById('start-btn');
+const inactivityOverlay = document.getElementById('inactivity-overlay');
+const timerValue = document.getElementById('timer-value');
+const timerWarning = document.getElementById('timer-warning');
+const terminToggle = document.getElementById('termin_angefragt');
+const terminDetails = document.getElementById('termin-details');
+const languageButtons = document.querySelectorAll('.lang-btn');
 
 // Inaktivitäts-Timer Variablen
 let inactivityTimer = null;
@@ -16,26 +19,375 @@ let countdownTimer = null;
 const INACTIVITY_TIMEOUT = 30000; // 30 Sekunden in Millisekunden
 let remainingTime = 30; // Verbleibende Zeit in Sekunden
 let timerStarted = false; // Flag: Timer bereits gestartet?
+let isFormActive = false;
+let currentLang = 'de';
+
+const translations = {
+    de: {
+        'lang.de': 'Deutsch',
+        'lang.en': 'English',
+        'lang.es': 'Espanol',
+        'lang.fr': 'Francais',
+        'lang.it': 'Italiano',
+        'header.title': 'Einchecken im Kundencenter',
+        'header.subtitle': 'Wartelisten-Anmeldung',
+        'start.title': 'Willkommen im Kundencenter',
+        'start.body': 'Bitte geben Sie im naechsten Schritt Ihre Daten ein, damit wir Ihnen eine Wartennummer zuweisen koennen.',
+        'start.privacy': 'Ihre Angaben werden ausschliesslich zur Bearbeitung Ihres Anliegens verarbeitet. Die Verarbeitung erfolgt gemaess den Datenschutzrichtlinien der AOK Niedersachsen.',
+        'start.continue': 'Weiter',
+        'section.personal': 'Persoenliche Daten',
+        'section.note': 'Notiz',
+        'section.contact': 'Kontaktdaten',
+        'section.appointment': 'Termindaten',
+        'label.partnernummer': 'Krankenkassenkartennummer',
+        'label.anrede': 'Anrede',
+        'label.vorname': 'Vorname',
+        'label.nachname': 'Nachname',
+        'label.geburtsdatum': 'Geburtsdatum',
+        'label.ansprechpartner': 'Ansprechpartner/Betreuer',
+        'label.notiz': 'Notiz',
+        'label.thema': 'Thema',
+        'label.wunschberater': 'Wunschberater',
+        'label.termin_tag': 'Termin Tag',
+        'label.uhrzeit': 'Uhrzeit',
+        'label.termin_toggle': 'Ich habe einen Termin angefragt',
+        'label.optional': '(optional)',
+        'label.required': '(pflicht)',
+        'option.select': '-- Bitte waehlen --',
+        'option.mr': 'Herr',
+        'option.ms': 'Frau',
+        'option.diverse': 'Divers',
+        'button.cancel': 'Abbrechen',
+        'button.submit': 'Absenden',
+        'timer.label': 'Inaktivitaet',
+        'timer.ready': 'Bereit',
+        'inactivity.message': 'Kehre in {s}s zur Startseite zurueck.',
+        'waiting.title': 'Ihre Wartennummer',
+        'waiting.countdown': 'Anzeige schliesst in {s}s',
+        'validation.required': 'Bitte fuellen Sie alle erforderlichen Felder aus.',
+        'confirm.reset': 'Moechten Sie das Formular wirklich zuruecksetzen?',
+        'notification.success': '✓ Formular erfolgreich verarbeitet!',
+        'notification.reset': 'Formular wurde zurueckgesetzt.',
+        'error.parse': 'Fehler beim Parsen der Serverantwort',
+        'error.format': 'Ungueltiges Antwortformat vom Server',
+        'error.generic': 'Ein Fehler ist aufgetreten:',
+        'placeholder.partnernummer': 'z.B. 123456789',
+        'placeholder.vorname': 'Max',
+        'placeholder.nachname': 'Mustermann',
+        'placeholder.ansprechpartner': 'Name des Betreuers',
+        'placeholder.notiz': 'Geben Sie hier zusaetzliche Informationen ein...',
+        'placeholder.thema': 'Anliegen eingeben',
+        'placeholder.wunschberater': 'Name oder ID'
+    },
+    en: {
+        'lang.de': 'Deutsch',
+        'lang.en': 'English',
+        'lang.es': 'Espanol',
+        'lang.fr': 'Francais',
+        'lang.it': 'Italiano',
+        'header.title': 'Check in at the Service Center',
+        'header.subtitle': 'Waiting List Registration',
+        'start.title': 'Welcome to the Service Center',
+        'start.body': 'Please enter your data in the next step so we can assign a waiting number.',
+        'start.privacy': 'Your information is processed solely to handle your request, in accordance with AOK Niedersachsen data protection guidelines.',
+        'start.continue': 'Continue',
+        'section.personal': 'Personal Data',
+        'section.note': 'Note',
+        'section.contact': 'Contact Details',
+        'section.appointment': 'Appointment Details',
+        'label.partnernummer': 'Insurance Card Number',
+        'label.anrede': 'Salutation',
+        'label.vorname': 'First Name',
+        'label.nachname': 'Last Name',
+        'label.geburtsdatum': 'Date of Birth',
+        'label.ansprechpartner': 'Contact Person/Caregiver',
+        'label.notiz': 'Note',
+        'label.thema': 'Topic',
+        'label.wunschberater': 'Preferred Advisor',
+        'label.termin_tag': 'Appointment Date',
+        'label.uhrzeit': 'Time',
+        'label.termin_toggle': 'I requested an appointment',
+        'label.optional': '(optional)',
+        'label.required': '(required)',
+        'option.select': '-- Please choose --',
+        'option.mr': 'Mr',
+        'option.ms': 'Ms',
+        'option.diverse': 'Other',
+        'button.cancel': 'Cancel',
+        'button.submit': 'Submit',
+        'timer.label': 'Inactivity',
+        'timer.ready': 'Ready',
+        'inactivity.message': 'Return to the start page in {s}s.',
+        'waiting.title': 'Your Waiting Number',
+        'waiting.countdown': 'Closing in {s}s',
+        'validation.required': 'Please fill in all required fields.',
+        'confirm.reset': 'Do you really want to reset the form?',
+        'notification.success': '✓ Form processed successfully!',
+        'notification.reset': 'Form has been reset.',
+        'error.parse': 'Error parsing server response',
+        'error.format': 'Invalid response format from server',
+        'error.generic': 'An error occurred:',
+        'placeholder.partnernummer': 'e.g. 123456789',
+        'placeholder.vorname': 'Max',
+        'placeholder.nachname': 'Mustermann',
+        'placeholder.ansprechpartner': 'Name of caregiver',
+        'placeholder.notiz': 'Add additional information...',
+        'placeholder.thema': 'Enter topic',
+        'placeholder.wunschberater': 'Name or ID'
+    },
+    es: {
+        'lang.de': 'Deutsch',
+        'lang.en': 'English',
+        'lang.es': 'Espanol',
+        'lang.fr': 'Francais',
+        'lang.it': 'Italiano',
+        'header.title': 'Registro en el centro de atencion',
+        'header.subtitle': 'Registro en lista de espera',
+        'start.title': 'Bienvenido al centro de atencion',
+        'start.body': 'Por favor, introduzca sus datos en el siguiente paso para asignarle un numero de espera.',
+        'start.privacy': 'Sus datos se tratan exclusivamente para gestionar su solicitud, conforme a las directrices de proteccion de datos de AOK Niedersachsen.',
+        'start.continue': 'Continuar',
+        'section.personal': 'Datos personales',
+        'section.note': 'Nota',
+        'section.contact': 'Datos de contacto',
+        'section.appointment': 'Datos de cita',
+        'label.partnernummer': 'Numero de tarjeta sanitaria',
+        'label.anrede': 'Tratamiento',
+        'label.vorname': 'Nombre',
+        'label.nachname': 'Apellido',
+        'label.geburtsdatum': 'Fecha de nacimiento',
+        'label.ansprechpartner': 'Persona de contacto/cuidador',
+        'label.notiz': 'Nota',
+        'label.thema': 'Tema',
+        'label.wunschberater': 'Asesor preferido',
+        'label.termin_tag': 'Fecha de cita',
+        'label.uhrzeit': 'Hora',
+        'label.termin_toggle': 'He solicitado una cita',
+        'label.optional': '(opcional)',
+        'label.required': '(obligatorio)',
+        'option.select': '-- Seleccione --',
+        'option.mr': 'Sr.',
+        'option.ms': 'Sra.',
+        'option.diverse': 'Otro',
+        'button.cancel': 'Cancelar',
+        'button.submit': 'Enviar',
+        'timer.label': 'Inactividad',
+        'timer.ready': 'Listo',
+        'inactivity.message': 'Volvera a la pagina de inicio en {s}s.',
+        'waiting.title': 'Su numero de espera',
+        'waiting.countdown': 'Se cierra en {s}s',
+        'validation.required': 'Complete todos los campos obligatorios.',
+        'confirm.reset': 'Desea restablecer el formulario?',
+        'notification.success': '✓ Formulario procesado correctamente!',
+        'notification.reset': 'Formulario restablecido.',
+        'error.parse': 'Error al analizar la respuesta del servidor',
+        'error.format': 'Formato de respuesta invalido del servidor',
+        'error.generic': 'Ha ocurrido un error:',
+        'placeholder.partnernummer': 'p. ej. 123456789',
+        'placeholder.vorname': 'Max',
+        'placeholder.nachname': 'Mustermann',
+        'placeholder.ansprechpartner': 'Nombre del cuidador',
+        'placeholder.notiz': 'Agregue informacion adicional...',
+        'placeholder.thema': 'Ingrese tema',
+        'placeholder.wunschberater': 'Nombre o ID'
+    },
+    fr: {
+        'lang.de': 'Deutsch',
+        'lang.en': 'English',
+        'lang.es': 'Espanol',
+        'lang.fr': 'Francais',
+        'lang.it': 'Italiano',
+        'header.title': 'Enregistrement au centre de service',
+        'header.subtitle': 'Inscription sur liste d attente',
+        'start.title': 'Bienvenue au centre de service',
+        'start.body': 'Veuillez saisir vos donnees a l etape suivante afin que nous puissions attribuer un numero d attente.',
+        'start.privacy': 'Vos donnees sont traitees uniquement pour gerer votre demande, conformement aux directives de protection des donnees de AOK Niedersachsen.',
+        'start.continue': 'Continuer',
+        'section.personal': 'Donnees personnelles',
+        'section.note': 'Note',
+        'section.contact': 'Coordonnees',
+        'section.appointment': 'Details du rendez-vous',
+        'label.partnernummer': 'Numero de carte d assurance',
+        'label.anrede': 'Civilite',
+        'label.vorname': 'Prenom',
+        'label.nachname': 'Nom',
+        'label.geburtsdatum': 'Date de naissance',
+        'label.ansprechpartner': 'Contact/aidant',
+        'label.notiz': 'Note',
+        'label.thema': 'Sujet',
+        'label.wunschberater': 'Conseiller souhaite',
+        'label.termin_tag': 'Date du rendez-vous',
+        'label.uhrzeit': 'Heure',
+        'label.termin_toggle': 'J ai demande un rendez-vous',
+        'label.optional': '(optionnel)',
+        'label.required': '(obligatoire)',
+        'option.select': '-- Veuillez choisir --',
+        'option.mr': 'M.',
+        'option.ms': 'Mme',
+        'option.diverse': 'Autre',
+        'button.cancel': 'Annuler',
+        'button.submit': 'Envoyer',
+        'timer.label': 'Inactivite',
+        'timer.ready': 'Pret',
+        'inactivity.message': 'Retour a la page de demarrage dans {s}s.',
+        'waiting.title': 'Votre numero d attente',
+        'waiting.countdown': 'Fermeture dans {s}s',
+        'validation.required': 'Veuillez remplir tous les champs obligatoires.',
+        'confirm.reset': 'Voulez-vous vraiment reinitialiser le formulaire?',
+        'notification.success': '✓ Formulaire traite avec succes!',
+        'notification.reset': 'Formulaire reinitialise.',
+        'error.parse': 'Erreur lors de l analyse de la reponse du serveur',
+        'error.format': 'Format de reponse invalide du serveur',
+        'error.generic': 'Une erreur est survenue:',
+        'placeholder.partnernummer': 'ex. 123456789',
+        'placeholder.vorname': 'Max',
+        'placeholder.nachname': 'Mustermann',
+        'placeholder.ansprechpartner': 'Nom de l aidant',
+        'placeholder.notiz': 'Ajoutez des informations...',
+        'placeholder.thema': 'Saisir le sujet',
+        'placeholder.wunschberater': 'Nom ou ID'
+    },
+    it: {
+        'lang.de': 'Deutsch',
+        'lang.en': 'English',
+        'lang.es': 'Espanol',
+        'lang.fr': 'Francais',
+        'lang.it': 'Italiano',
+        'header.title': 'Registrazione al centro servizi',
+        'header.subtitle': 'Registrazione lista di attesa',
+        'start.title': 'Benvenuto al centro servizi',
+        'start.body': 'Inserisca i suoi dati nel prossimo passaggio per assegnarle un numero di attesa.',
+        'start.privacy': 'I suoi dati sono trattati esclusivamente per gestire la sua richiesta, in conformita alle linee guida sulla privacy di AOK Niedersachsen.',
+        'start.continue': 'Continua',
+        'section.personal': 'Dati personali',
+        'section.note': 'Nota',
+        'section.contact': 'Dati di contatto',
+        'section.appointment': 'Dettagli appuntamento',
+        'label.partnernummer': 'Numero tessera sanitaria',
+        'label.anrede': 'Titolo',
+        'label.vorname': 'Nome',
+        'label.nachname': 'Cognome',
+        'label.geburtsdatum': 'Data di nascita',
+        'label.ansprechpartner': 'Referente/caregiver',
+        'label.notiz': 'Nota',
+        'label.thema': 'Tema',
+        'label.wunschberater': 'Consulente preferito',
+        'label.termin_tag': 'Data appuntamento',
+        'label.uhrzeit': 'Ora',
+        'label.termin_toggle': 'Ho richiesto un appuntamento',
+        'label.optional': '(opzionale)',
+        'label.required': '(obbligatorio)',
+        'option.select': '-- Selezionare --',
+        'option.mr': 'Sig.',
+        'option.ms': 'Sig.ra',
+        'option.diverse': 'Altro',
+        'button.cancel': 'Annulla',
+        'button.submit': 'Invia',
+        'timer.label': 'Inattivita',
+        'timer.ready': 'Pronto',
+        'inactivity.message': 'Torno alla pagina iniziale tra {s}s.',
+        'waiting.title': 'Il suo numero di attesa',
+        'waiting.countdown': 'Si chiude tra {s}s',
+        'validation.required': 'Compilare tutti i campi obbligatori.',
+        'confirm.reset': 'Vuole davvero reimpostare il modulo?',
+        'notification.success': '✓ Modulo elaborato con successo!',
+        'notification.reset': 'Modulo reimpostato.',
+        'error.parse': 'Errore durante l analisi della risposta del server',
+        'error.format': 'Formato di risposta non valido dal server',
+        'error.generic': 'Si e verificato un errore:',
+        'placeholder.partnernummer': 'es. 123456789',
+        'placeholder.vorname': 'Max',
+        'placeholder.nachname': 'Mustermann',
+        'placeholder.ansprechpartner': 'Nome del caregiver',
+        'placeholder.notiz': 'Aggiungi informazioni...',
+        'placeholder.thema': 'Inserisci tema',
+        'placeholder.wunschberater': 'Nome o ID'
+    }
+};
+
+function t(key, vars = {}) {
+    const dictionary = translations[currentLang] || translations.de;
+    let value = dictionary[key] || translations.de[key] || key;
+    Object.entries(vars).forEach(([name, replacement]) => {
+        value = value.replace(`{${name}}`, replacement);
+    });
+    return value;
+}
+
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach((element) => {
+        const key = element.getAttribute('data-i18n');
+        if (!key) {
+            return;
+        }
+        element.textContent = t(key);
+    });
+
+    document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
+        const key = element.getAttribute('data-i18n-placeholder');
+        if (!key) {
+            return;
+        }
+        element.setAttribute('placeholder', t(key));
+    });
+
+    if (timerStarted) {
+        updateTimerDisplay();
+    }
+}
+
+function setLanguage(lang) {
+    currentLang = translations[lang] ? lang : 'de';
+    localStorage.setItem('kls-lang', currentLang);
+    applyTranslations();
+    languageButtons.forEach((button) => {
+        button.classList.toggle('active', button.dataset.lang === currentLang);
+    });
+}
 
 // ===== INAKTIVITÄTS-TIMER FUNKTIONEN =====
 function updateTimerDisplay() {
-    const timerElement = document.getElementById('timer-value');
-    if (timerElement) {
-        // Wenn Timer noch nicht gestartet, zeige "Bereit"
-        if (!timerStarted) {
-            timerElement.textContent = 'Bereit';
-            timerElement.classList.remove('warning');
-            return;
-        }
-        
-        timerElement.textContent = remainingTime + 's';
-        
-        // Warnung aktivieren bei 10 Sekunden oder weniger
-        if (remainingTime <= 10) {
-            timerElement.classList.add('warning');
+    if (!timerValue || !timerWarning || !inactivityOverlay) {
+        return;
+    }
+
+    const card = inactivityOverlay.querySelector('.inactivity-card');
+
+    if (isFormActive) {
+        if (remainingTime <= 25 && timerStarted) {
+            inactivityOverlay.classList.add('show');
+            inactivityOverlay.classList.remove('hidden');
         } else {
-            timerElement.classList.remove('warning');
+            inactivityOverlay.classList.remove('show');
+            inactivityOverlay.classList.add('hidden');
         }
+    } else {
+        inactivityOverlay.classList.remove('show');
+        inactivityOverlay.classList.add('hidden');
+        return;
+    }
+
+    if (!timerStarted) {
+        timerValue.textContent = t('timer.ready');
+        timerValue.classList.remove('warning');
+        timerWarning.textContent = '';
+        return;
+    }
+
+    timerValue.textContent = remainingTime + 's';
+
+    if (remainingTime <= 10) {
+        timerValue.classList.add('warning');
+        if (card) {
+            card.classList.add('warning');
+        }
+        timerWarning.textContent = t('inactivity.message', { s: remainingTime });
+    } else {
+        timerValue.classList.remove('warning');
+        if (card) {
+            card.classList.remove('warning');
+        }
+        timerWarning.textContent = t('inactivity.message', { s: remainingTime });
     }
 }
 
@@ -59,10 +411,13 @@ function startCountdown() {
 }
 
 function resetInactivityTimer() {
+    if (!isFormActive) {
+        return;
+    }
+
     // Timer nur starten, wenn noch nicht gestartet
     if (!timerStarted) {
         timerStarted = true;
-        console.log('⏱️ Timer gestartet - erste Eingabe erkannt');
     }
     
     // Bestehenden Timer löschen
@@ -82,37 +437,69 @@ function resetInactivityTimer() {
 function resetFormOnInactivity() {
     // Formular leeren
     form.reset();
-    
-    // Modal schließen, falls offen
-    closeModal();
-    
-    // Seite neu laden
-    location.reload();
+
+    showStartScreen();
 }
 
-// Modal öffnen
-function openModal(emailHtml) {
-    emailPreview.innerHTML = emailHtml;
-    modal.classList.add('show');
-    // Timer zurücksetzen, wenn Modal geöffnet wird
+function stopInactivityTimers() {
+    if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = null;
+    }
+
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+}
+
+function showStartScreen() {
+    isFormActive = false;
+    timerStarted = false;
+    remainingTime = 30;
+    stopInactivityTimers();
+    updateTimerDisplay();
+
+    if (inactivityOverlay) {
+        const card = inactivityOverlay.querySelector('.inactivity-card');
+        if (card) {
+            card.classList.remove('warning');
+        }
+    }
+
+    if (formScreen) {
+        formScreen.classList.add('hidden');
+    }
+    if (startScreen) {
+        startScreen.classList.remove('hidden');
+    }
+
+    setLanguage('de');
+
+    applyTranslations();
+}
+
+function showFormScreen() {
+    isFormActive = true;
+    timerStarted = false;
+    remainingTime = 30;
+    updateTimerDisplay();
+
+    if (startScreen) {
+        startScreen.classList.add('hidden');
+    }
+    if (formScreen) {
+        formScreen.classList.remove('hidden');
+    }
+
+    setDefaultDateTime();
     resetInactivityTimer();
-}
-
-// Modal schließen
-function closeModal() {
-    modal.classList.remove('show');
-}
-
-// E-Mail Drucken
-function printEmail() {
-    const printWindow = window.open('', '', 'height=500,width=900');
-    printWindow.document.write(emailPreview.innerHTML);
-    printWindow.document.close();
-    printWindow.print();
+    updateTerminDetails();
+    applyTranslations();
 }
 
 // Wartennummer anzeigen (10 Sekunden)
-function showWaitingNumber(waitingNumber, emailHtml) {
+function showWaitingNumber(waitingNumber) {
     if (!waitingNumber) {
         return;
     }
@@ -123,13 +510,13 @@ function showWaitingNumber(waitingNumber, emailHtml) {
         overlay.id = 'waiting-number-overlay';
         overlay.innerHTML = `
             <div class="waiting-number-card">
-                <div class="waiting-number-title">Ihre Wartennummer</div>
+                <div class="waiting-number-title" data-i18n="waiting.title">Ihre Wartennummer</div>
                 <div class="waiting-number-value" id="waiting-number-value"></div>
                 <div class="waiting-number-countdown" id="waiting-number-countdown"></div>
-                <button class="waiting-number-debug" id="waiting-number-debug" type="button">Debug: Vorschau oeffnen</button>
             </div>
         `;
         document.body.appendChild(overlay);
+        applyTranslations();
     }
 
     const valueEl = overlay.querySelector('#waiting-number-value');
@@ -137,23 +524,16 @@ function showWaitingNumber(waitingNumber, emailHtml) {
     let remaining = 10;
 
     valueEl.textContent = waitingNumber;
-    countdownEl.textContent = `Anzeige schliesst in ${remaining}s`;
+    countdownEl.textContent = t('waiting.countdown', { s: remaining });
     overlay.classList.add('show');
 
-    const debugBtn = overlay.querySelector('#waiting-number-debug');
-    if (debugBtn && DEBUG_EMAIL_PREVIEW && emailHtml) {
-        debugBtn.addEventListener('click', () => {
-            clearTimeout(resetTimeoutId);
-            overlay.classList.remove('show');
-            openModal(emailHtml);
-        });
-    } else if (debugBtn) {
-        debugBtn.disabled = true;
-    }
+    isFormActive = false;
+    stopInactivityTimers();
+    updateTimerDisplay();
 
     const intervalId = setInterval(() => {
         remaining -= 1;
-        countdownEl.textContent = `Anzeige schliesst in ${remaining}s`;
+        countdownEl.textContent = t('waiting.countdown', { s: remaining });
         if (remaining <= 0) {
             clearInterval(intervalId);
         }
@@ -162,8 +542,7 @@ function showWaitingNumber(waitingNumber, emailHtml) {
     const resetTimeoutId = setTimeout(() => {
         overlay.classList.remove('show');
         form.reset();
-        closeModal();
-        location.reload();
+        showStartScreen();
     }, 10000);
 }
 
@@ -173,7 +552,7 @@ submitBtn.addEventListener('click', async (e) => {
 
     // Validierung durchführen
     if (!validateForm()) {
-        alert('Bitte füllen Sie alle erforderlichen Felder aus.');
+        alert(t('validation.required'));
         return;
     }
 
@@ -197,31 +576,24 @@ submitBtn.addEventListener('click', async (e) => {
             } else {
                 const text = await response.text();
                 console.error('Unexpected response format:', text);
-                throw new Error('Ungültiges Antwortformat vom Server');
+                throw new Error(t('error.format'));
             }
         } catch (parseError) {
             console.error('JSON Parse Error:', parseError);
-            throw new Error('Fehler beim Parsen der Serverantwort');
+            throw new Error(t('error.parse'));
         }
 
         if (data.success) {
             // Wartennummer anzeigen
-            if (data.email_html) {
-                emailPreview.innerHTML = data.email_html;
-            }
-            showWaitingNumber(data.waiting_number, data.email_html);
+            showWaitingNumber(data.waiting_number);
 
             // Erfolgs-Benachrichtigung
-            showNotification('✓ Formular erfolgreich verarbeitet!', 'success');
+            showNotification(t('notification.success'), 'success');
 
             // Formular zurücksetzen nach erfolgreicher Einreichung
             form.reset();
-            timerStarted = false;
-            updateTimerDisplay();
+            showStartScreen();
 
-            if (data.email_sent === false) {
-                showNotification('E-Mail wurde nicht gesendet (Konfiguration fehlt).', 'info');
-            }
         } else {
             // Zeige Fehlermeldung an
             let errorMessage = data.message || 'Fehler beim Verarbeiten des Formulars.';
@@ -239,29 +611,16 @@ submitBtn.addEventListener('click', async (e) => {
         }
     } catch (error) {
         console.error('Fehler:', error);
-        showNotification('✗ Ein Fehler ist aufgetreten: ' + error.message, 'error');
+        showNotification(`✗ ${t('error.generic')} ${error.message}`, 'error');
     }
 });
 
 // Formular zurücksetzen
 cancelBtn.addEventListener('click', () => {
-    if (confirm('Möchten Sie das Formular wirklich zurücksetzen?')) {
+    if (confirm(t('confirm.reset'))) {
         form.reset();
-        showNotification('Formular wurde zurückgesetzt.', 'info');
-    }
-});
-
-// Modal schließen
-closeModalBtn.addEventListener('click', closeModal);
-closeBtn.addEventListener('click', closeModal);
-
-// E-Mail drucken
-printEmailBtn.addEventListener('click', printEmail);
-
-// Modal schließen bei Klick außerhalb
-window.addEventListener('click', (e) => {
-    if (e.target === modal) {
-        closeModal();
+        showNotification(t('notification.reset'), 'info');
+        showStartScreen();
     }
 });
 
@@ -313,13 +672,35 @@ function setDefaultDateTime() {
     }
 }
 
+function updateTerminDetails() {
+    if (!terminDetails || !terminToggle) {
+        return;
+    }
+
+    if (terminToggle.checked) {
+        terminDetails.classList.remove('hidden');
+        setDefaultDateTime();
+    } else {
+        terminDetails.classList.add('hidden');
+        const terminTagInput = document.getElementById('termin_tag');
+        const zeitInput = document.getElementById('uhrzeit');
+        if (terminTagInput) {
+            terminTagInput.value = '';
+        }
+        if (zeitInput) {
+            zeitInput.value = '';
+        }
+    }
+}
+
 // Formular-Validierung
 function validateForm() {
     const vorname = document.getElementById('vorname').value.trim();
     const nachname = document.getElementById('nachname').value.trim();
+    const geburtsdatum = document.getElementById('geburtsdatum').value.trim();
     
     // Mindestens Vor- und Nachname erforderlich
-    return vorname.length > 0 && nachname.length > 0;
+    return vorname.length > 0 && nachname.length > 0 && geburtsdatum.length > 0;
 }
 
 // Benachrichtigungssystem
@@ -418,10 +799,27 @@ document.addEventListener('touchstart', resetInactivityTimer);
 
 // Timer-Display beim Laden initialisieren und Default-Werte setzen
 window.addEventListener('load', () => {
-    updateTimerDisplay();
-    setDefaultDateTime();
+    showStartScreen();
+    const savedLang = localStorage.getItem('kls-lang');
+    setLanguage(savedLang || 'de');
 });
 
 // Informationen anzeigen beim Laden
 console.log('Einchecken.-Kundencenter - AOK Niedersachsen Anwendung geladen');
 console.log('⏱️ Inaktivitäts-Timeout: 30 Sekunden');
+
+if (startBtn) {
+    startBtn.addEventListener('click', () => {
+        showFormScreen();
+    });
+}
+
+languageButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+        setLanguage(button.dataset.lang || 'de');
+    });
+});
+
+if (terminToggle) {
+    terminToggle.addEventListener('change', updateTerminDetails);
+}

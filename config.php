@@ -8,21 +8,6 @@ error_reporting(E_ALL);
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
-// ===== MAIL CONFIGURATION =====
-define('MAIL_ENABLED', true);
-define('MAIL_FROM', 'noreply@aok-niedersachsen.de');
-define('MAIL_FROM_NAME', 'AOK Niedersachsen KLS');
-define('MAIL_TO', 'kls@aok-niedersachsen.de');
-define('MAIL_SUBJECT_PREFIX', 'AOK KLS Warteliste');
-
-// SMTP-Konfiguration (optional, Fallback auf mail() wenn deaktiviert)
-define('SMTP_ENABLED', false);
-define('SMTP_HOST', 'smtp.example.com');
-define('SMTP_PORT', 587);
-define('SMTP_ENCRYPTION', 'tls'); // 'tls', 'ssl', oder ''
-define('SMTP_USERNAME', '');
-define('SMTP_PASSWORD', '');
-
 // ===== QUEUE CONFIGURATION =====
 define('QUEUE_COUNTER_FILE', __DIR__ . '/data/queue_counter.json');
 
@@ -40,10 +25,18 @@ define('RATE_LIMIT_WINDOW', 3600); // 1 Stunde in Sekunden
 define('RATE_LIMIT_FILE', __DIR__ . '/data/rate_limits.json');
 define('CSRF_TOKEN_LIFETIME', 3600);
 
+// ===== SECURE EXPORT CONFIGURATION =====
+define('DATA_EXPORT_ENABLED', true);
+define('DATA_EXPORT_DIR', __DIR__ . '/data/exports');
+define('DATA_EXPORT_TTL', 3600); // 1 Stunde in Sekunden
+define('DATA_EXPORT_API_KEY', 'change-me');
+define('DATA_EXPORT_BASE_URL', '');
+define('DATA_EXPORT_ALLOW_POLL', true);
+define('DATA_EXPORT_CONSUME_ON_READ', true);
+define('DATA_EXPORT_ENCRYPTION_KEY', 'Wp8wWco164fiVqJOZ/esHcC2HFiqV16aibKn61l0W7c='); // Base64-encoded 32-byte key
+
 // ===== VALIDATION CONFIGURATION =====
 define('VALIDATION_MIN_FIRSTNAME_LENGTH', 2);
 define('VALIDATION_MIN_LASTNAME_LENGTH', 2);
 define('VALIDATION_MAX_TEXT_LENGTH', 5000);
 
-// ===== EMAIL FORMAT =====
-define('EMAIL_FORMAT', 'multipart'); // 'html', 'plain', 'multipart'

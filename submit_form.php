@@ -113,15 +113,36 @@ if (!empty($validation_errors)) {
 $waiting_number = get_waiting_number();
 $form_data['notiz'] = append_waiting_number($form_data['notiz'], $waiting_number);
 
-// ===== GENERATE EMAILS =====
-$email_html = generate_email_html($form_data, $client_ip);
-$email_text = generate_email_text($form_data, $client_ip);
+// ===== SECURE EXPORT =====
+$export_token = '';
+$export_link = '';
+$export_ready = false;
 
-// ===== SEND EMAIL =====
-$email_sent = false;
-if (MAIL_ENABLED && MAIL_TO !== '') {
-    $subject = MAIL_SUBJECT_PREFIX . ' #' . $waiting_number;
-    $email_sent = send_email(MAIL_TO, $subject, $email_html, $email_text);
+if (DATA_EXPORT_ENABLED) {
+    if (get_export_encryption_key() === null) {
+        http_response_code(500);
+        log_message('Export encryption key missing', 'error', ['ip' => $client_ip]);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Sichere Speicherung nicht konfiguriert. Bitte Admin kontaktieren.'
+        ]);
+        exit;
+    }
+
+    $export_info = create_export_record($form_data, $client_ip, $waiting_number);
+    if ($export_info === null) {
+        http_response_code(500);
+        log_message('Export record creation failed', 'error', ['ip' => $client_ip]);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Sichere Speicherung fehlgeschlagen. Bitte erneut versuchen.'
+        ]);
+        exit;
+    }
+
+    $export_token = $export_info['token'];
+    $export_link = $export_info['link'];
+    $export_ready = true;
 }
 
 // ===== LOG SUBMISSION =====
@@ -129,7 +150,7 @@ if (LOG_SUBMISSIONS) {
     log_message('Form submitted', 'info', [
         'ip' => $client_ip,
         'waiting_number' => $waiting_number,
-        'email_sent' => $email_sent,
+        'export_ready' => $export_ready,
         'vorname' => $form_data['vorname'],
         'nachname' => $form_data['nachname']
     ]);
@@ -143,8 +164,7 @@ echo json_encode([
     'success' => true,
     'message' => 'Formular erfolgreich verarbeitet',
     'waiting_number' => $waiting_number,
-    'email_html' => $email_html,
-    'email_sent' => $email_sent,
+    'export_ready' => $export_ready,
     'client_ip' => $client_ip,
     'timestamp' => date('d.m.Y H:i:s')
 ]);

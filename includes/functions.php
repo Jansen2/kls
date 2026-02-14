@@ -174,41 +174,208 @@ function verify_csrf_token(string $token): bool {
     return true;
 }
 
-// ===== EMAIL SENDING =====
-function send_email(string $to, string $subject, string $html_body, string $plain_body): bool {
-    if (!MAIL_ENABLED) {
-        log_message('Mail disabled', 'info', ['to' => $to]);
-        return true;
+// ===== SECURE EXPORT =====
+function get_export_encryption_key(): ?string {
+    $raw_key = DATA_EXPORT_ENCRYPTION_KEY;
+    if ($raw_key === '') {
+        return null;
     }
 
-    $boundary = 'boundary-' . bin2hex(random_bytes(8));
-    $headers = [
-        'From: ' . MAIL_FROM_NAME . ' <' . MAIL_FROM . '>',
-        'Reply-To: ' . MAIL_FROM,
-        'X-Mailer: AOK-KLS/1.0',
-        'MIME-Version: 1.0',
-        'Content-Type: multipart/alternative; boundary="' . $boundary . '"'
+    $decoded = base64_decode($raw_key, true);
+    if ($decoded === false || strlen($decoded) !== 32) {
+        return null;
+    }
+
+    return $decoded;
+}
+
+function encrypt_export_payload(array $payload): ?array {
+    $key = get_export_encryption_key();
+    if ($key === null) {
+        return null;
+    }
+
+    if (!function_exists('openssl_encrypt')) {
+        log_message('OpenSSL not available for export encryption', 'error');
+        return null;
+    }
+
+    $nonce = random_bytes(12);
+    $plaintext = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($plaintext === false) {
+        return null;
+    }
+
+    $tag = '';
+    $ciphertext = openssl_encrypt(
+        $plaintext,
+        'aes-256-gcm',
+        $key,
+        OPENSSL_RAW_DATA,
+        $nonce,
+        $tag
+    );
+
+    if ($ciphertext === false) {
+        return null;
+    }
+
+    return [
+        'alg' => 'AES-256-GCM',
+        'nonce' => base64_encode($nonce),
+        'tag' => base64_encode($tag),
+        'ciphertext' => base64_encode($ciphertext)
+    ];
+}
+
+function ensure_export_dir(): void {
+    if (DATA_EXPORT_ENABLED && !is_dir(DATA_EXPORT_DIR)) {
+        @mkdir(DATA_EXPORT_DIR, 0755, true);
+    }
+}
+
+function is_valid_export_token(string $token): bool {
+    return (bool)preg_match('/^[a-f0-9]{32}$/', $token);
+}
+
+function build_export_link(string $token): string {
+    if (!DATA_EXPORT_BASE_URL) {
+        return '';
+    }
+
+    return rtrim(DATA_EXPORT_BASE_URL, '/') . '?token=' . $token;
+}
+
+function create_export_record(array $form_data, string $client_ip, string $waiting_number): ?array {
+    if (!DATA_EXPORT_ENABLED) {
+        return null;
+    }
+
+    ensure_export_dir();
+
+    $token = bin2hex(random_bytes(16));
+    $now = time();
+
+    $plaintext_payload = [
+        'waiting_number' => $waiting_number,
+        'client_ip' => $client_ip,
+        'form_data' => $form_data
     ];
 
-    $body = "--" . $boundary . "\r\n";
-    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-    $body .= $plain_body . "\r\n\r\n";
-    $body .= "--" . $boundary . "\r\n";
-    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-    $body .= $html_body . "\r\n\r\n";
-    $body .= "--" . $boundary . "--";
-
-    $result = mail($to, $subject, $body, implode("\r\n", $headers));
-    
-    if ($result) {
-        log_message('Email sent', 'info', ['to' => $to, 'subject' => $subject]);
-    } else {
-        log_message('Failed to send email', 'error', ['to' => $to, 'subject' => $subject]);
+    $encrypted_payload = encrypt_export_payload($plaintext_payload);
+    if ($encrypted_payload === null) {
+        return null;
     }
 
-    return $result;
+    $record = [
+        'token' => $token,
+        'created_at' => $now,
+        'expires_at' => $now + DATA_EXPORT_TTL,
+        'payload' => $encrypted_payload
+    ];
+
+    $file_path = DATA_EXPORT_DIR . '/' . $token . '.json';
+    $result = @file_put_contents(
+        $file_path,
+        json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        LOCK_EX
+    );
+
+    if ($result === false) {
+        return null;
+    }
+
+    return [
+        'token' => $token,
+        'link' => build_export_link($token),
+        'path' => $file_path
+    ];
+}
+
+function read_export_record(string $token): ?array {
+    if (!is_valid_export_token($token)) {
+        return null;
+    }
+
+    $file_path = DATA_EXPORT_DIR . '/' . $token . '.json';
+    if (!is_file($file_path)) {
+        return null;
+    }
+
+    $contents = @file_get_contents($file_path);
+    if ($contents === false) {
+        return null;
+    }
+
+    $data = json_decode($contents, true);
+    if (!is_array($data)) {
+        return null;
+    }
+
+    return $data;
+}
+
+function delete_export_record(string $token): void {
+    if (!is_valid_export_token($token)) {
+        return;
+    }
+
+    $file_path = DATA_EXPORT_DIR . '/' . $token . '.json';
+    if (is_file($file_path)) {
+        @unlink($file_path);
+    }
+}
+
+function cleanup_expired_exports(): void {
+    if (!DATA_EXPORT_ENABLED) {
+        return;
+    }
+
+    ensure_export_dir();
+
+    $files = glob(DATA_EXPORT_DIR . '/*.json') ?: [];
+    $now = time();
+
+    foreach ($files as $file_path) {
+        $contents = @file_get_contents($file_path);
+        if ($contents === false) {
+            continue;
+        }
+
+        $data = json_decode($contents, true);
+        if (!is_array($data)) {
+            continue;
+        }
+
+        $expires_at = (int)($data['expires_at'] ?? 0);
+        if ($expires_at > 0 && $expires_at < $now) {
+            @unlink($file_path);
+        }
+    }
+}
+
+function find_oldest_export_token(): ?string {
+    if (!DATA_EXPORT_ENABLED) {
+        return null;
+    }
+
+    ensure_export_dir();
+
+    $files = glob(DATA_EXPORT_DIR . '/*.json') ?: [];
+    if (empty($files)) {
+        return null;
+    }
+
+    usort($files, function ($a, $b) {
+        return filemtime($a) <=> filemtime($b);
+    });
+
+    $oldest = $files[0] ?? '';
+    if (!$oldest) {
+        return null;
+    }
+
+    return basename($oldest, '.json');
 }
 
 // ===== QUEUE MANAGEMENT =====
@@ -266,236 +433,3 @@ function append_waiting_number(string $notiz, string $waiting_number): string {
     return $notiz . "\n\n" . $label;
 }
 
-function generate_email_text(array $form_data, string $client_ip): string {
-    $timestamp = date('d.m.Y H:i:s');
-
-    $lines = [
-        'Einchecken.-Kundencenter',
-        'AOK Niedersachsen - Wartelisten-Anmeldung',
-        '',
-        'PERSOENLICHE DATEN',
-        'Krankenkassenkartennummer: ' . ($form_data['partnernummer'] ?? ''),
-        'Anrede: ' . ($form_data['anrede'] ?? ''),
-        'Vorname: ' . ($form_data['vorname'] ?? ''),
-        'Nachname: ' . ($form_data['nachname'] ?? ''),
-        'Geburtsdatum: ' . ($form_data['geburtsdatum'] ?? ''),
-        'Ansprechpartner/Betreuer: ' . ($form_data['ansprechpartner'] ?? ''),
-        '',
-        'NOTIZ',
-        ($form_data['notiz'] ?? ''),
-        '',
-        'KONTAKTDATEN',
-        'Thema: ' . ($form_data['thema'] ?? ''),
-        'Wunschberater: ' . ($form_data['wunschberater'] ?? ''),
-        '',
-        'TERMINDATEN',
-        'Termin Tag: ' . ($form_data['termin_tag'] ?? ''),
-        'Uhrzeit: ' . ($form_data['uhrzeit'] ?? ''),
-        '',
-        'ZUSAETZLICHE INFORMATIONEN',
-        'Absender IP-Adresse: ' . $client_ip,
-        'Zeitstempel: ' . $timestamp
-    ];
-
-    return implode("\n", $lines);
-}
-
-function send_email_plain(string $to, string $subject, string $body, string $from): bool {
-    $headers = [
-        'From: ' . $from,
-        'Reply-To: ' . $from,
-        'Content-Type: text/plain; charset=UTF-8'
-    ];
-
-    return mail($to, $subject, $body, implode("\r\n", $headers));
-}
-
-function generate_email_html(array $form_data, string $client_ip): string {
-    $timestamp = date('d.m.Y H:i:s');
-
-    $partnernummer = h($form_data['partnernummer'] ?? '');
-    $anrede = h($form_data['anrede'] ?? '');
-    $vorname = h($form_data['vorname'] ?? '');
-    $nachname = h($form_data['nachname'] ?? '');
-    $geburtsdatum = h($form_data['geburtsdatum'] ?? '');
-    $ansprechpartner = h($form_data['ansprechpartner'] ?? '');
-    $notiz = h($form_data['notiz'] ?? '');
-    $thema = h($form_data['thema'] ?? '');
-    $wunschberater = h($form_data['wunschberater'] ?? '');
-    $termin_tag = h($form_data['termin_tag'] ?? '');
-    $uhrzeit = h($form_data['uhrzeit'] ?? '');
-
-    $client_ip_safe = h($client_ip);
-
-    $email_html = <<<HTML
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-            margin: 0;
-            padding: 0;
-        }
-        .email-container {
-            max-width: 600px;
-            margin: 20px auto;
-            background-color: #ffffff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-        .email-header {
-            background-color: #009B50;
-            color: #ffffff;
-            padding: 20px;
-            text-align: center;
-        }
-        .email-header h1 {
-            margin: 0;
-            font-size: 24px;
-        }
-        .email-body {
-            padding: 20px;
-        }
-        .section {
-            margin-bottom: 20px;
-            border-bottom: 1px solid #e0e0e0;
-            padding-bottom: 15px;
-        }
-        .section:last-child {
-            border-bottom: none;
-        }
-        .section-title {
-            font-weight: bold;
-            color: #009B50;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        .form-field {
-            margin-bottom: 8px;
-            font-size: 13px;
-        }
-        .form-field label {
-            display: inline-block;
-            width: 150px;
-            font-weight: bold;
-            color: #333;
-        }
-        .form-field-value {
-            color: #666;
-            word-wrap: break-word;
-        }
-        .notiz {
-            background-color: #f9f9f9;
-            border-left: 4px solid #009B50;
-            padding: 10px;
-            margin-top: 5px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .contact-info {
-            background-color: #f0f0f0;
-            padding: 10px;
-            border-radius: 3px;
-            font-size: 12px;
-            color: #666;
-        }
-        .footer {
-            background-color: #f5f5f5;
-            padding: 15px;
-            font-size: 11px;
-            color: #999;
-            text-align: center;
-            border-top: 1px solid #ddd;
-        }
-    </style>
-</head>
-<body>
-    <div class="email-container">
-        <div class="email-header">
-            <h1>Einchecken.-Kundencenter</h1>
-            <p>AOK Niedersachsen - Wartelisten-Anmeldung</p>
-        </div>
-
-        <div class="email-body">
-            <div class="section">
-                <div class="section-title">📋 PERSÖNLICHE DATEN</div>
-                <div class="form-field">
-                    <label>Krankenkassenkartennummer:</label>
-                    <span class="form-field-value">{$partnernummer}</span>
-                </div>
-                <div class="form-field">
-                    <label>Anrede:</label>
-                    <span class="form-field-value">{$anrede}</span>
-                </div>
-                <div class="form-field">
-                    <label>Vorname:</label>
-                    <span class="form-field-value">{$vorname}</span>
-                </div>
-                <div class="form-field">
-                    <label>Nachname:</label>
-                    <span class="form-field-value">{$nachname}</span>
-                </div>
-                <div class="form-field">
-                    <label>Geburtsdatum:</label>
-                    <span class="form-field-value">{$geburtsdatum}</span>
-                </div>
-                <div class="form-field">
-                    <label>Ansprechpartner/Betreuer:</label>
-                    <span class="form-field-value">{$ansprechpartner}</span>
-                </div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">📝 NOTIZ</div>
-                <div class="notiz">{$notiz}</div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">📞 KONTAKTDATEN</div>
-                <div class="form-field">
-                    <label>Thema:</label>
-                    <span class="form-field-value">{$thema}</span>
-                </div>
-                <div class="form-field">
-                    <label>Wunschberater:</label>
-                    <span class="form-field-value">{$wunschberater}</span>
-                </div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">📅 TERMINDATEN</div>
-                <div class="form-field">
-                    <label>Termin Tag:</label>
-                    <span class="form-field-value">{$termin_tag}</span>
-                </div>
-                <div class="form-field">
-                    <label>Uhrzeit:</label>
-                    <span class="form-field-value">{$uhrzeit}</span>
-                </div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">ℹ️ ZUSÄTZLICHE INFORMATIONEN</div>
-                <div class="contact-info">
-                    <div><strong>Absender IP-Adresse:</strong> {$client_ip_safe}</div>
-                    <div><strong>Zeitstempel:</strong> {$timestamp}</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>Diese E-Mail wurde automatisch generiert von der AOK Niedersachsen Empfangsanwendung.</p>
-            <p>© AOK Niedersachsen - Alle Rechte vorbehalten</p>
-        </div>
-    </div>
-</body>
-</html>
-HTML;
-
-    return $email_html;
-}
